@@ -1,0 +1,13 @@
+/vendor
+/node_modules
+/public/hot
+/public/storage
+/public/uploads
+/public/download
+/public/logs
+/public/app_data
+/storage/*.key
+.env
+composer.lock
+/nbproject/project.xml
+/nbproject/project.properties
