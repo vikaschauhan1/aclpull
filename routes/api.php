@@ -18,3 +18,4 @@ Route::middleware('auth:api')->get('/user', function (Request $request) {
 });
 
 Route::get('aclpull', 'AclPullController@aclpullAPI');
+Route::get('mo-request', 'MoRequestController@getMoRequest');
