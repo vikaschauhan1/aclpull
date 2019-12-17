@@ -18,6 +18,7 @@ class MoRequestRepository implements MoRequestRepositoryInterface
 
     public function getAllMoRequest($request)
     {
+        //echo '<pre>'; print_r($request->all());die ;
         $to = $request->to; 
         $from = $request->from;
         $smsc = $request->smsc;
@@ -29,8 +30,7 @@ class MoRequestRepository implements MoRequestRepositoryInterface
             'MESSAGE' => $text,
             'TRANSACTIONID' => $transactionId
         );
-
-        MoRequest::insert($data);
+       $res =  MoRequest::insert($data);
     }
 
 

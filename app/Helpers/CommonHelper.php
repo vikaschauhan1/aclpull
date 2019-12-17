@@ -8,7 +8,8 @@ if (! function_exists('getTransactionId')) {
      */
     function getTransactionId() {
         //echo 'tes'; die ;
-        return  'SM00101-'.uniqid();
+        $milliseconds = round(microtime(true) * 1000);
+        return  'SM00101-'.$milliseconds;
     }
 }
 
