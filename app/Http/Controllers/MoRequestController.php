@@ -21,22 +21,8 @@ class MoRequestController extends Controller
 
     public function getMoRequest(Request $request)
     {
-        $getMoRequest = $this->moRequestRepository->getAllMoRequest($request);
+        return $getMoRequest = $this->moRequestRepository->getAllMoRequest($request);
       
-    }
-
-    public function aclpullAPI(){
-
-        $allInput = Input::all();
-        $transactionId = getTransactionId();
-        if($allInput['to']){
-            $allInput = Input::all();
-            Redis::hmset($transactionId,$allInput);
-        }
-        Redis::expire($transactionId, config('environment.REDIS_EXPIRE_TIME'));
-        $user = Redis::hgetall($transactionId);
-        return $transactionId ;
-        return $user = Redis::hgetall($transactionId);
     }
 
 
