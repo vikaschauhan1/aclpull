@@ -22,6 +22,7 @@ class MoRequestController extends Controller
     public function getMoRequest(Request $request)
     {
         $getMoRequest = $this->moRequestRepository->getAllMoRequest($request);
+        return $getMoRequest;
       
     }
 
