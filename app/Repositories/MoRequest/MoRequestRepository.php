@@ -4,7 +4,9 @@ namespace App\Repositories\MoRequest;
 
 use App\Repositories\MoRequest\MoRequestRepositoryInterface ;
 use App\Models\MoRequest;
-use App\Models\SeriesMaster ;
+use App\Models\OperatorMapping;
+use App\Models\OperatorMaster;
+use App\Models\SeriesMaster;
 use App\Repositories\RepositoryInterface;
 
 class MoRequestRepository implements MoRequestRepositoryInterface
@@ -19,9 +21,13 @@ class MoRequestRepository implements MoRequestRepositoryInterface
 
     public function getAllMoRequest($request)
     {
-
         $to = $request->to; 
         $from = $request->from;
+        $getMsisdn = getValidNumbers($from, 'domestic');
+        $getOperatorId = $this->getOperatorBySmsc($request->smsc);
+        $getOperatorName = $this->getOperatorNameById($getOperatorId);
+       
+       
         $smsc = $request->smsc;
         $text = $request->text;
         $transactionId = getTransactionId();
@@ -31,11 +37,35 @@ class MoRequestRepository implements MoRequestRepositoryInterface
             'MESSAGE' => $text,
             'TRANSACTIONID' => $transactionId
         );
-       //$res =  MoRequest::insert($data);
-       return $transactionId ;
+       // MoRequest::insert($data);
+
+        return $transactionId;
+    }
+
+
+    public function getOperatorBySmsc($smscId)
+    {
+        $operatorId = OperatorMapping::select('OPERATOR_ID')
+            ->where('SMSC_ID', $smscId)
+            ->first()
+            ->toArray();
+        return $operatorId['operator_id'];    
+    }
+
+    public function getOperatorNameById($operatorId) 
+    {
+        $operatorName = OperatorMaster::select('OPERATORNAME','OPERATORTYPE')
+            ->where('OPERATORID', $operatorId)
+           ->get();
+        return $operatorName;
+    }
+
+    public function getOperatorByMsisdn(){
+        
     }
 
     /**
+     * getSmcIdByMsisdn()
      * @Return a array with SMSCID,OPERATORID,CIRCLEID
      * @param MSISDN Number with country code
      * 
@@ -45,10 +75,10 @@ class MoRequestRepository implements MoRequestRepositoryInterface
     {
         $countryCode = 91;
         $msisdnNo = 9935788771;
-        for($i = 3; $i<= strlen($msisdnNo); $i++){
+        $minItr = config('constant.MINITERATION');
+        for($i = $minItr; $i<= strlen($msisdnNo); $i++){
             $seriesList[] = substr($msisdnNo,0,$i);
         }
-
         $res = SeriesMaster::select('SMSCID','OPERATORID','CIRCLEID')
                 ->where('COUNTRYCODE', '=', $countryCode)
                 ->whereIn('SERIES', $seriesList)
