@@ -14,7 +14,8 @@ class AppServiceProvider extends ServiceProvider
     public function register()
     {
         $repositories  = [
-            'MoRequest'
+            'MoRequest',
+            'RefreshUrl'
         ];
 
         foreach ($repositories as $name) {

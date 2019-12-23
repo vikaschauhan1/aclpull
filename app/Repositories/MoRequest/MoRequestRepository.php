@@ -8,6 +8,7 @@ use App\Models\OperatorMapping;
 use App\Models\OperatorMaster;
 use App\Models\SeriesMaster;
 use App\Repositories\RepositoryInterface;
+use Illuminate\Support\Facades\Redis;
 
 class MoRequestRepository implements MoRequestRepositoryInterface
 {
@@ -21,25 +22,42 @@ class MoRequestRepository implements MoRequestRepositoryInterface
 
     public function getAllMoRequest($request)
     {
+       // print_r($this->MoRequest);die ;
         $to = $request->to; 
         $from = $request->from;
-        $getMsisdn = getValidNumbers($from, 'domestic');
-        $getOperatorId = $this->getOperatorBySmsc($request->smsc);
-        $getOperatorName = $this->getOperatorNameById($getOperatorId);
-       
-       
         $smsc = $request->smsc;
         $text = $request->text;
-        $transactionId = getTransactionId();
-        $data = array(
-            'SHORTCODE' => substr($to,0,5),
-            'SUFFIX' => substr($to,6),
-            'MESSAGE' => $text,
-            'TRANSACTIONID' => $transactionId
-        );
-       // MoRequest::insert($data);
 
-        return $transactionId;
+        if(empty($request->TXNID) || !isset($request->TXNID)){
+            $transactionId = getTransactionId();
+        }else{
+            $transactionId = $request->TXNID ;
+        }
+
+        $getMsisdn = getValidNumbers($from, 'domestic');
+        if($getMsisdn && (!empty($getMsisdn))){
+            if(empty($request->smsc)){
+              // return $getSmcIdByMsisdn = $this->getSmcIdByMsisdn($getMsisdn);
+            }else{
+               //return $getOperatorId = $this->getOperatorBySmsc($request->smsc);
+            }
+            $getOperatorId = 10;
+           // print_r($getMsisdn);die ;
+            // $getOperatorId = $this->getOperatorBySmsc($request->smsc);
+            return $getOperatorName = $this->getOperatorNameById($getOperatorId);
+             $data = array(
+                 'SHORTCODE' => substr($to,0,5),
+                 'SUFFIX' => substr($to,6),
+                 'MESSAGE' => $text,
+                 'TRANSACTIONID' => $transactionId
+             );
+            // MoRequest::insert($data);
+                return $transactionId;
+        }else{
+                return 'Invalid Number' ;
+        }
+
+      
     }
 
 
@@ -54,10 +72,22 @@ class MoRequestRepository implements MoRequestRepositoryInterface
 
     public function getOperatorNameById($operatorId) 
     {
-        $operatorName = OperatorMaster::select('OPERATORNAME','OPERATORTYPE')
+        $key = 'OPERATORMASTER:'.$operatorId;
+        $redisData = Redis::hgetall($key);
+        if(!empty($redisData) && is_array($redisData)){
+          //  return $redisData ;
+        }
+        
+        if(empty($redisData)){
+            $operatorData = OperatorMaster::select('OPERATORNAME','OPERATORTYPE')
             ->where('OPERATORID', $operatorId)
-           ->get();
-        return $operatorName;
+            ->first()->toArray();
+            //echo '<pre>'; print_r($operatorData);die ;
+            if(!empty($operatorData) && count($operatorData) > 0){
+                return $operatorData ;
+            }
+            return false;
+        }
     }
 
     public function getOperatorByMsisdn(){
@@ -71,22 +101,31 @@ class MoRequestRepository implements MoRequestRepositoryInterface
      * 
      */
 
-    public function getSmcIdByMsisdn($msisdn=null)
+    public function getSmcIdByMsisdn($msisdn)
     {
-        $countryCode = 91;
-        $msisdnNo = 9935788771;
+        $countryCode = $msisdn[0];
+        $msisdnNo = $msisdn[1];
         $minItr = config('constant.MINITERATION');
         for($i = $minItr; $i<= strlen($msisdnNo); $i++){
             $seriesList[] = substr($msisdnNo,0,$i);
+            $key = 'SERIESMASTER:' .$countryCode.substr($msisdnNo,0,$i);
+            $stored = Redis::hgetall($key);
+            if(!empty($stored) && is_array($stored)){
+               return $stored ;
+            }
         }
-        $res = SeriesMaster::select('SMSCID','OPERATORID','CIRCLEID')
-                ->where('COUNTRYCODE', '=', $countryCode)
-                ->whereIn('SERIES', $seriesList)
-                ->get()->toArray();
-        if(!empty($res) && count($res) > 0){
-            return $res ;
+
+        if(empty($stored)){
+            $res = SeriesMaster::select('SMSCID','OPERATORID','CIRCLEID')
+            ->where('COUNTRYCODE',$countryCode)
+            ->whereIn('SERIES', $seriesList)
+            ->first()->toArray();
+
+            if(!empty($res) && count($res) > 0){
+                return $res ;
+            }
+            return false;
         }
-        return false;
     }
 
 
