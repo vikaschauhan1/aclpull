@@ -16,4 +16,5 @@ Route::get('/', function () {
 });
 
 Route::get('aclpull', 'AclPullController@aclpullAPI');
-Route::get('aclpull1', 'AclPullController@aclpullAPI1');
+Route::get('refreshurl', 'RefreshUrlController@refreshUrl');
+Route::get('flushdata', 'RefreshUrlController@flushallRedisdata');
