@@ -7,6 +7,9 @@ use App\Models\MoRequest;
 use App\Models\OperatorMapping;
 use App\Models\OperatorMaster;
 use App\Models\SeriesMaster;
+use App\Models\SmscMaster;
+use App\Models\SuffixMaster;
+use App\Models\CircleMaster;
 use App\Repositories\RepositoryInterface;
 use Illuminate\Support\Facades\Redis;
 
@@ -14,7 +17,7 @@ class MoRequestRepository implements MoRequestRepositoryInterface
 {
     public $MoRequest;
 
-    function __construct(MoRequest $MoRequest)
+    function __construct(MoRequest $MoRequest) 
     {
         $this->MoRequest = $MoRequest;
     }
@@ -30,7 +33,7 @@ class MoRequestRepository implements MoRequestRepositoryInterface
         $from = $request->from;
         $smscId = $request->smsc;
         $text = $request->text;
-
+        $appId = $this->getApplicationId($smscId = '1111', $to);
         if(empty($request->TXNID) || !isset($request->TXNID)){
             $transactionId = getTransactionId();
         }else{
@@ -88,7 +91,6 @@ class MoRequestRepository implements MoRequestRepositoryInterface
 
     public function getOperatorIdBySmsc($smscId)
     {
-
         $key = 'OPERATORMAPPING:'.$smscId;
         $redisData = Redis::hgetall($key);
         if(!empty($redisData) && is_array($redisData)){
@@ -134,7 +136,7 @@ class MoRequestRepository implements MoRequestRepositoryInterface
      */
 
     public function getSmcIdByMsisdn($msisdn)
-    {
+    { 
         $countryCode = $msisdn[0];
         $msisdnNo = $msisdn[1];
         $minItr = config('constant.MINITERATION');
@@ -187,5 +189,39 @@ class MoRequestRepository implements MoRequestRepositoryInterface
         return true;
     }
 
+    public function getApplicationId($smscId, $to)
+    {
+        if($smscId){
+           $shortCode = $this->getShortCodeViaSmsc($smscId);
+        }
+        // else{
+        //     $smscId = $this->getSmcIdByMsisdn($abc);
+        //     $shortCode = $this->getShortCodeViaSmsc($smscId);
+        // }
+        if(!empty($shortCode)){
+            $suffixShortCode = $to;
+            $getSuffix = substr($suffixShortCode, strlen($shortCode) , strlen($suffixShortCode));
+        }
+
+        $getApplicationId = SuffixMaster::select('APPLICATIONID')
+            ->where('SHORTCODE', $shortCode)->where('SUFFIX', $getSuffix)->first();
+            
+    }
+
+    public function getShortCodeViaSmsc($smscId) 
+    {
+        $shortCode = SmscMaster::select('SHORTCODE')
+               ->where('SMSCID', $smscId)
+               ->first()
+               ->toArray();
+        return $shortCode['shortcode'];
+    }
+
+    public function getCircleById($circleId)
+    {
+        $circleName = CircleMaster::select('CIRCLENAME')->where('CIRCLEID', $circleId)->first();
+        return $circleName;
+                         
+    }
 
 }
