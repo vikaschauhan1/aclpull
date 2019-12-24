@@ -19,13 +19,16 @@ class MoRequestRepository implements MoRequestRepositoryInterface
         $this->MoRequest = $MoRequest;
     }
 
-
+    /**
+     * @params @Request array with to,from,smscid
+     * @return Void
+     * 
+     */
     public function getAllMoRequest($request)
     {
-       // print_r($this->MoRequest);die ;
         $to = $request->to; 
         $from = $request->from;
-        $smsc = $request->smsc;
+        $smscId = $request->smsc;
         $text = $request->text;
 
         if(empty($request->TXNID) || !isset($request->TXNID)){
@@ -35,39 +38,72 @@ class MoRequestRepository implements MoRequestRepositoryInterface
         }
 
         $getMsisdn = getValidNumbers($from, 'domestic');
-        if($getMsisdn && (!empty($getMsisdn))){
-            if(empty($request->smsc)){
-              // return $getSmcIdByMsisdn = $this->getSmcIdByMsisdn($getMsisdn);
+        if(isset($getMsisdn) && (!empty($getMsisdn)) && is_array($getMsisdn)){
+            
+            $this->setRequestInRedis($transactionId,$request);
+            $requestRedisKey = 'REQ:'.$transactionId;
+            if(empty($smscId)){
+               $getSmcIdOperatorDetail = $this->getSmcIdByMsisdn($getMsisdn);
+               $getOperatorId = $getSmcIdOperatorDetail->operatorid;
+               $smscId = $getSmcIdOperatorDetail->smscid;
+               $circleId = $getSmcIdOperatorDetail->circleid;
             }else{
-               //return $getOperatorId = $this->getOperatorBySmsc($request->smsc);
+                $getOperatorId = $this->getOperatorIdBySmsc($smscId);
+                $getSmcIdOperatorDetail = $this->getSmcIdByMsisdn($getMsisdn);
+               // $circleId = $this->getcircleId($requestRedisKey,$getMsisdn);
             }
-            $getOperatorId = 10;
-           // print_r($getMsisdn);die ;
-            // $getOperatorId = $this->getOperatorBySmsc($request->smsc);
-            return $getOperatorName = $this->getOperatorNameById($getOperatorId);
-             $data = array(
-                 'SHORTCODE' => substr($to,0,5),
-                 'SUFFIX' => substr($to,6),
-                 'MESSAGE' => $text,
-                 'TRANSACTIONID' => $transactionId
+
+            $getOperatorData = $this->getOperatorNameById($getOperatorId);
+            $operatorName = $getOperatorData->operatorname;
+            $networkType = $getOperatorData->operatortype;
+            $circleName = '';
+            $milliseconds = round(microtime(true) * 1000);
+            $data = array(
+                'REQRECEIVEDTIME' => $milliseconds,
+                'TRANSACTIONID' => $transactionId,
+                'ORIGNATOR' => '',
+                'NETWORKTYPE' => $networkType,
+                'BEARER' => config('core-properties.bearer'),
+                'CIRCLE' => '',
+                'OPERATOR' => $operatorName,
+                'DESTINATION' => '',
+                'COUNTRYCODE' => '',
+                'MSISDNSERIES' => '',
+                'SHORTCODE' => '',
+                'SUFFIX' => substr($to,6),
+                'MESSAGE' => $text,
+                'MESSAGESTATUS' => '',
+                'MESSAGESTATUSDESC' => '',
+                'APPLICATIONID' => '',
+                'DELIVERYTIME' => '',
              );
-            // MoRequest::insert($data);
+             MoRequest::insert($data);
                 return $transactionId;
         }else{
                 return 'Invalid Number' ;
         }
-
       
     }
 
 
-    public function getOperatorBySmsc($smscId)
+    public function getOperatorIdBySmsc($smscId)
     {
-        $operatorId = OperatorMapping::select('OPERATOR_ID')
+
+        $key = 'OPERATORMAPPING:'.$smscId;
+        $redisData = Redis::hgetall($key);
+        if(!empty($redisData) && is_array($redisData)){
+            return $redisData['operator_id'] ;
+        }
+
+        if(empty($redisData)){
+            $operatorId = OperatorMapping::select('OPERATOR_ID')
             ->where('SMSC_ID', $smscId)
-            ->first()
-            ->toArray();
-        return $operatorId['operator_id'];    
+            ->first()->toArray();
+            if(!empty($operatorId) && count($operatorId) > 0){
+                return $operatorId['operator_id'] ;
+            }
+            return false;
+        }  
     }
 
     public function getOperatorNameById($operatorId) 
@@ -75,29 +111,25 @@ class MoRequestRepository implements MoRequestRepositoryInterface
         $key = 'OPERATORMASTER:'.$operatorId;
         $redisData = Redis::hgetall($key);
         if(!empty($redisData) && is_array($redisData)){
-          //  return $redisData ;
+           return $redisData = (object) $redisData;
         }
         
-        if(empty($redisData)){
+        if(!empty($redisData)){
             $operatorData = OperatorMaster::select('OPERATORNAME','OPERATORTYPE')
             ->where('OPERATORID', $operatorId)
             ->first()->toArray();
-            //echo '<pre>'; print_r($operatorData);die ;
             if(!empty($operatorData) && count($operatorData) > 0){
+                $operatorData = (object) $operatorData;
                 return $operatorData ;
             }
             return false;
         }
     }
 
-    public function getOperatorByMsisdn(){
-        
-    }
-
     /**
      * getSmcIdByMsisdn()
      * @Return a array with SMSCID,OPERATORID,CIRCLEID
-     * @param MSISDN Number with country code
+     * @param MSISDN @Array, Number with country code
      * 
      */
 
@@ -111,21 +143,48 @@ class MoRequestRepository implements MoRequestRepositoryInterface
             $key = 'SERIESMASTER:' .$countryCode.substr($msisdnNo,0,$i);
             $stored = Redis::hgetall($key);
             if(!empty($stored) && is_array($stored)){
-               return $stored ;
+                return $stored = (object) $stored;
             }
         }
 
         if(empty($stored)){
-            $res = SeriesMaster::select('SMSCID','OPERATORID','CIRCLEID')
+            $seriesData = SeriesMaster::select('SMSCID','OPERATORID','CIRCLEID','SERIES')
             ->where('COUNTRYCODE',$countryCode)
             ->whereIn('SERIES', $seriesList)
             ->first()->toArray();
 
-            if(!empty($res) && count($res) > 0){
-                return $res ;
+            if(!empty($seriesData) && count($seriesData) > 0){
+                return $seriesData = (object) $seriesData;
             }
             return false;
         }
+    }
+
+    /**
+    * Set in redis all request parameter 
+    * @param TransId and Request Array
+    * @Return Void
+    */
+
+    public function setRequestInRedis($transactionId,$request){
+        Redis::hmset('REQ:'.$transactionId, [
+            'TO' => $request->to,
+            'FROM' => $request->from,
+            'SMSC' => $request->smsc,
+            'TEXT' => $request->text,
+            'UHID' => $request->uhid,
+        ]);
+    }
+
+    /**
+     * Pending 
+     * Some query
+     * 
+     */
+    public function getcircleId($requestRedisKey,$getMsisdn){
+        $redisData = Redis::hgetall($requestRedisKey);
+        $smscId = $redisData['SMSC'] ;
+        return true;
     }
 
 

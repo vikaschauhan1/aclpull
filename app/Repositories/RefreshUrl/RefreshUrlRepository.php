@@ -7,6 +7,7 @@ use App\Models\MoRequest;
 use App\Models\OperatorMapping;
 use App\Models\OperatorMaster;
 use App\Models\SeriesMaster;
+use App\Models\CountryMaster;
 use App\Repositories\RepositoryInterface;
 use Illuminate\Support\Facades\Redis;
 
@@ -27,9 +28,10 @@ class RefreshUrlRepository implements RefreshUrlRepositoryInterface
             foreach($seriesMaster as $value){
                 $value = (object) $value;
                 Redis::hmset('SERIESMASTER:'. $value->countrycode.$value->series, [
-                    'CIRCLEID'    => $value->circleid,
-                    'SMSCID'      => $value->smscid,
-                    'OPERATORID'  => $value->operatorid,
+                    'circleid'    => $value->circleid,
+                    'smscid'      => $value->smscid,
+                    'operatorid'  => $value->operatorid,
+                    'series'      => $value->series,
                 ]);
             }
         }
@@ -43,7 +45,7 @@ class RefreshUrlRepository implements RefreshUrlRepositoryInterface
             foreach($operatorMapping as $value ){
                 $value = (object) $value;
                 Redis::hmset('OPERATORMAPPING:'.$value->smsc_id, [
-                    'OPERATORID' => $value->operator_id,
+                    'operator_id' => $value->operator_id,
                 ]);
             }
         }
@@ -53,18 +55,48 @@ class RefreshUrlRepository implements RefreshUrlRepositoryInterface
     public function storeOperatorMasterData()
     {
         $operatorMaster = OperatorMaster::all()->toArray();
-        //echo '<pre>'; print_r($operatorMaster); die ;
         if($operatorMaster){
             foreach($operatorMaster as $value ){
                 $value = (object) $value;
                 Redis::hmset('OPERATORMASTER:'.$value->operatorid, [
-                    'OPERATORNAME' => $value->operatorname,
-                    'OPERATORTYPE' => $value->operatortype
+                    'operatorname' => $value->operatorname,
+                    'operatortype' => $value->operatortype
                 ]);
             }
         }
        return 'Refreshed Data';
     }
+
+    public function storeSmscMasterData()
+    {
+        // $operatorMapping = OperatorMapping::all()->toArray();
+        // if($operatorMapping){
+        //     foreach($operatorMapping as $value ){
+        //         $value = (object) $value;
+        //         Redis::hmset('SMSCMASTER:'.$value->smsc_id, [
+        //             'OPERATORID' => $value->operator_id,
+        //         ]);
+        //     }
+        // }
+       return 'Refreshed Data';
+    }
+
+    public function storeCountryMasterData()
+    {
+        $countryMaster = CountryMaster::all()->toArray();
+
+        if($countryMaster){
+            foreach($countryMaster as $value ){
+                $value = (object) $value;
+                Redis::hmset('COUNTRYMASTER:'.$value->countrycode, [
+                    'countryname' => $value->countryname,
+                    'countrycodelength' => $value->countrycodelength,
+                ]);
+            }
+        }
+       return 'Refreshed Data';
+    }
+
 
 
     public function flushallRedisdata(){
@@ -76,6 +108,7 @@ class RefreshUrlRepository implements RefreshUrlRepositoryInterface
         $this->storeSeriesMasterData();
         $this->storeOperatorMappingData();
         $this->storeOperatorMasterData();
+        $this->storeCountryMasterData();
         return 'Refreshed Data'; 
     }
 
