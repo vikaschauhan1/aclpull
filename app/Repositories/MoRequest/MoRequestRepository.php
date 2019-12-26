@@ -40,7 +40,7 @@ class MoRequestRepository implements MoRequestRepositoryInterface
 
         $getMsisdn = getValidNumbers($from, 'domestic');
         if(isset($getMsisdn) && (!empty($getMsisdn))){
-            $this->setRequestInRedis($transactionId,$request);
+            $this->setRequestInRedis($transactionId,$request->all());
             $requestRedisKey = 'REQ:'.$transactionId;
             return $this->saveMoRequest($request, $transactionId, $getMsisdn);
         }else{
@@ -52,55 +52,62 @@ class MoRequestRepository implements MoRequestRepositoryInterface
 
     public function saveMoRequest($request,$transactionId,$getMsisdn){
 
-            $getSmcIdOperatorDetail = $this->getSmcIdByMsisdn($getMsisdn);
-            if(empty($smscId)){
-            $getOperatorId = $getSmcIdOperatorDetail->operatorid;
-            $smscId = $getSmcIdOperatorDetail->smscid;
+            $smscId = $request->smsc ;
+            try {  
+
+                $getSmcIdOperatorDetail = $this->getSmcIdByMsisdn($getMsisdn);
+                if(empty($smscId)){
+                    $getOperatorId = $getSmcIdOperatorDetail->operatorid;
+                    $smscId = $getSmcIdOperatorDetail->smscid;
+                }else{
+                    $getOperatorId = $this->getOperatorIdBySmsc($smscId);
+                }
+
+                $to = $request->to ;
+                $text = $request->text ;
+                $circleId = $getSmcIdOperatorDetail->circleid;
+                $circleName = $this->getCircleById($circleId);
+                $getOperatorData = $this->getOperatorNameById($getOperatorId);
+                $operatorName = $getOperatorData->operatorname;
+                $response = $this->isBlockOperatorShortCode($operatorName,$to);
+
+                if(!$response){
+                    $networkType = $getOperatorData->operatortype;
+                    $countryCode = substr(trim($getMsisdn), 0, 2);
+                    $getApplicationData =   $this->getApplicationId($smscId, $to, $getMsisdn);
+                    $applicationId = $getApplicationData->applicationid ;
+                    $suffix = $getApplicationData->suffix ;
+                    $shortCode = $getApplicationData->shortcode ;
+                    $msisdnSeries = substr(trim($getMsisdn), 0, 7);
+                    $message = 'SUCCESSFULLY FORWORDED TO APPLICATION';
+                    $milliSeconds = round(microtime(true) * config('core-properties.MICROSECOND'));
+                    $data = array(
+                        'REQRECEIVEDTIME' => $milliSeconds,
+                        'TRANSACTIONID' => $transactionId,
+                        'ORIGNATOR' => $getMsisdn,
+                        'NETWORKTYPE' => $networkType,
+                        'BEARER' => config('core-properties.bearer'),
+                        'CIRCLE' => $circleName,
+                        'OPERATOR' => $operatorName,
+                        'DESTINATION' => $to,
+                        'COUNTRYCODE' => $countryCode,
+                        'MSISDNSERIES' => $msisdnSeries,
+                        'SHORTCODE' => $shortCode,
+                        'SUFFIX' => $suffix,
+                        'MESSAGE' => $text,
+                        'MESSAGESTATUS' => 'Y',
+                        'MESSAGESTATUSDESC' => $message,
+                        'APPLICATIONID' => $applicationId,
+                        'DELIVERYTIME' => $milliSeconds,
+                );
+                    $response =  MoRequest::insert($data);
+                    return $transactionId;
             }else{
-                $getOperatorId = $this->getOperatorIdBySmsc($smscId);
+                return 'Operator Blocked';
             }
-            
-            $to = $request->to ;
-            $text = $request->text ;
-            $circleId = $getSmcIdOperatorDetail->circleid;
-            $circleName = $this->getCircleById($circleId);
-            $getOperatorData = $this->getOperatorNameById($getOperatorId);
-            $operatorName = $getOperatorData->operatorname;
-
-            $response = $this->isBlockOperatorShortCode($operatorName,$to);
-            if($response){
-
-                $networkType = $getOperatorData->operatortype;
-                $countryCode = substr(trim($getMsisdn[0]), 0, 2);
-                $getApplicationData =   $this->getApplicationId($smscId, $to, $getMsisdn);
-                $applicationId = $getApplicationData->applicationid ;
-                $suffix = $getApplicationData->suffix ;
-                $shortCode = $getApplicationData->shortcode ;
-                $message = 'SUCCESSFULLY FORWORDED TO APPLICATION';
-                $milliSeconds = round(microtime(true) * config('core-properties.MICROSECOND'));
-                $data = array(
-                    'REQRECEIVEDTIME' => $milliSeconds,
-                    'TRANSACTIONID' => $transactionId,
-                // 'ORIGNATOR' => $getMsisdn,
-                    'NETWORKTYPE' => $networkType,
-                    'BEARER' => config('core-properties.bearer'),
-                    'CIRCLE' => $circleName,
-                    'OPERATOR' => $operatorName,
-                    'DESTINATION' => $to,
-                    'COUNTRYCODE' => $countryCode,
-                    'MSISDNSERIES' => '',
-                    'SHORTCODE' => $shortCode,
-                    'SUFFIX' => $suffix,
-                    'MESSAGE' => $text,
-                    'MESSAGESTATUS' => 'Y',
-                    'MESSAGESTATUSDESC' => $message,
-                    'APPLICATIONID' => $applicationId,
-                    'DELIVERYTIME' => '',
-             );
-            MoRequest::insert($data);
-            return $transactionId;
-        }else{
-            return 'Operator Blocked';
+        }
+        catch (\Throwable $th) {
+            $th->getMessage();
         }
     }
 
@@ -184,24 +191,10 @@ class MoRequestRepository implements MoRequestRepositoryInterface
     */
 
     public function setRequestInRedis($transactionId,$request){
-        Redis::hmset('REQ:'.$transactionId, [
-            'TO' => $request->to,
-            'FROM' => $request->from,
-            'SMSC' => $request->smsc,
-            'TEXT' => $request->text,
-            'UHID' => $request->uhid,
-        ]);
-    }
-
-    /**
-     * Pending 
-     * Some query
-     * 
-     */
-    public function getcircleId($requestRedisKey,$getMsisdn){
-        $redisData = Redis::hgetall($requestRedisKey);
-        $smscId = $redisData['SMSC'] ;
-        return true;
+        $request = json_encode($request);
+        Redis::set('REQ:'.$transactionId,$request);
+       // $redisData  = Redis::get('REQ:'.$transactionId);
+        //$redisData = json_decode($redisData);
     }
 
     public function getApplicationId($smscId, $to, $getMsisdn)
@@ -243,13 +236,14 @@ class MoRequestRepository implements MoRequestRepositoryInterface
 
     public function isBlockOperatorShortCode($operatorName,$to){
         $operatorKey = $operatorName.'-'.$to;
-        $blockedOperatorList = config('operator-block-list');
+        $blockedOperatorList = parse_ini_file("operator-block-list.ini",true) ;
+        //$blockedOperatorList = config('operator-block-list');
         foreach($blockedOperatorList as $key => $val){
             if($operatorKey == $key && $val == 1){
-               return false;
+               return true;
             }
         }
-        return true ;
+        return false ;
     }
 
 }
