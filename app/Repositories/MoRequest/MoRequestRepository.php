@@ -29,11 +29,8 @@ class MoRequestRepository implements MoRequestRepositoryInterface
      */
     public function getAllMoRequest($request)
     {
-        $to = $request->to; 
+        
         $from = $request->from;
-        $smscId = $request->smsc;
-        $text = $request->text;
-        $appId = $this->getApplicationId($smscId = '1111', $to);
         if(empty($request->TXNID) || !isset($request->TXNID)){
             $transactionId = getTransactionId();
         }else{
@@ -42,52 +39,58 @@ class MoRequestRepository implements MoRequestRepositoryInterface
 
         $getMsisdn = getValidNumbers($from, 'domestic');
         if(isset($getMsisdn) && (!empty($getMsisdn)) && is_array($getMsisdn)){
-            
             $this->setRequestInRedis($transactionId,$request);
             $requestRedisKey = 'REQ:'.$transactionId;
-            if(empty($smscId)){
-               $getSmcIdOperatorDetail = $this->getSmcIdByMsisdn($getMsisdn);
-               $getOperatorId = $getSmcIdOperatorDetail->operatorid;
-               $smscId = $getSmcIdOperatorDetail->smscid;
-               $circleId = $getSmcIdOperatorDetail->circleid;
-            }else{
-                $getOperatorId = $this->getOperatorIdBySmsc($smscId);
-                $getSmcIdOperatorDetail = $this->getSmcIdByMsisdn($getMsisdn);
-               // $circleId = $this->getcircleId($requestRedisKey,$getMsisdn);
-            }
-
-            $getOperatorData = $this->getOperatorNameById($getOperatorId);
-            $operatorName = $getOperatorData->operatorname;
-            $networkType = $getOperatorData->operatortype;
-            $circleName = '';
-            $milliseconds = round(microtime(true) * 1000);
-            $data = array(
-                'REQRECEIVEDTIME' => $milliseconds,
-                'TRANSACTIONID' => $transactionId,
-                'ORIGNATOR' => '',
-                'NETWORKTYPE' => $networkType,
-                'BEARER' => config('core-properties.bearer'),
-                'CIRCLE' => '',
-                'OPERATOR' => $operatorName,
-                'DESTINATION' => '',
-                'COUNTRYCODE' => '',
-                'MSISDNSERIES' => '',
-                'SHORTCODE' => '',
-                'SUFFIX' => substr($to,6),
-                'MESSAGE' => $text,
-                'MESSAGESTATUS' => '',
-                'MESSAGESTATUSDESC' => '',
-                'APPLICATIONID' => '',
-                'DELIVERYTIME' => '',
-             );
-             MoRequest::insert($data);
-                return $transactionId;
+            return $this->saveMoRequest($transactionId, $getMsisdn,$request);
         }else{
-                return 'Invalid Number' ;
+            return 'Invalid Number' ;
         }
       
     }
 
+
+    public function saveMoRequest($transactionId,$getMsisdn,$request){
+
+            $getSmcIdOperatorDetail = $this->getSmcIdByMsisdn($getMsisdn);
+            if(empty($smscId)){
+            $getOperatorId = $getSmcIdOperatorDetail->operatorid;
+            $smscId = $getSmcIdOperatorDetail->smscid;
+            }else{
+                $getOperatorId = $this->getOperatorIdBySmsc($smscId);
+            }
+            
+            $to = $request->to ;
+            $text = $request->text ;
+            $circleId = $getSmcIdOperatorDetail->circleid;
+            $circleName = $this->getCircleById($circleId);
+            $getOperatorData = $this->getOperatorNameById($getOperatorId);
+            $operatorName = $getOperatorData->operatorname;
+            $networkType = $getOperatorData->operatortype;
+            $countryCode = $getMsisdn[0];
+            $milliSeconds = round(microtime(true) * 1000);
+
+            $data = array(
+                'REQRECEIVEDTIME' => $milliSeconds,
+                'TRANSACTIONID' => $transactionId,
+                'ORIGNATOR' => '',
+                'NETWORKTYPE' => $networkType,
+                'BEARER' => config('core-properties.bearer'),
+                'CIRCLE' => $circleName,
+                'OPERATOR' => $operatorName,
+                'DESTINATION' => '',
+                'COUNTRYCODE' => $countryCode,
+                'MSISDNSERIES' => '',
+                'SHORTCODE' => $to,
+                'SUFFIX' => substr($to,6),
+                'MESSAGE' => $text,
+                'MESSAGESTATUS' => 'Y',
+                'MESSAGESTATUSDESC' => '',
+                'APPLICATIONID' => '',
+                'DELIVERYTIME' => '',
+             );
+            MoRequest::insert($data);
+            return $transactionId;
+    }
 
     public function getOperatorIdBySmsc($smscId)
     {
@@ -96,7 +99,7 @@ class MoRequestRepository implements MoRequestRepositoryInterface
         if(!empty($redisData) && is_array($redisData)){
             return $redisData['operator_id'] ;
         }
-
+      
         if(empty($redisData)){
             $operatorId = OperatorMapping::select('OPERATOR_ID')
             ->where('SMSC_ID', $smscId)
@@ -219,8 +222,8 @@ class MoRequestRepository implements MoRequestRepositoryInterface
 
     public function getCircleById($circleId)
     {
-        $circleName = CircleMaster::select('CIRCLENAME')->where('CIRCLEID', $circleId)->first();
-        return $circleName;
+        $circleName = CircleMaster::select('CIRCLENAME')->where('CIRCLEID', $circleId)->first()->toArray();
+        return $circleName['circlename'];
                          
     }
 
