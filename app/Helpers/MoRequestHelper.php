@@ -30,15 +30,17 @@ if (!function_exists('getValidNumbers')) {
                 $returnNumbers[] = $addSubstring.$validNumber[0];
             }
             elseif(!empty($validNumber)){
-                $returnNumbers[] = $validNumber[0];
+                return $validNumber;
+                // print_r($validNumber);die;
+                // $returnNumbers[] = $validNumber[0];
             }
             else{
                 return false;
             }
-            $validMsisdn[] = substr(trim($returnNumbers[0]), 0, 2);
-            $validMsisdn[] = substr(trim($returnNumbers[0]), 2, 10);   
-            
-        return $validMsisdn;
+            // print_r($returnNumbers);die;
+            // $validMsisdn[] = substr(trim($returnNumbers[0]), 0, 2);
+            // $validMsisdn[] = substr(trim($returnNumbers[0]), 2, 10);   
+        // return $returnNumbers;
 
     }
 
