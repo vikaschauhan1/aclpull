@@ -2,14 +2,16 @@
 
 namespace App\Repositories\RefreshUrl;
 
-use App\Repositories\RefreshUrl\RefreshUrlRepositoryInterface ;
 use App\Models\MoRequest;
-use App\Models\OperatorMapping;
-use App\Models\OperatorMaster;
+use App\Models\SmscMaster;
 use App\Models\SeriesMaster;
 use App\Models\CountryMaster;
-use App\Repositories\RepositoryInterface;
+use App\Models\OperatorMaster;
+use App\Models\OperatorMapping;
+use App\Models\CircleMaster;
 use Illuminate\Support\Facades\Redis;
+use App\Repositories\RepositoryInterface;
+use App\Repositories\RefreshUrl\RefreshUrlRepositoryInterface ;
 
 class RefreshUrlRepository implements RefreshUrlRepositoryInterface
 {
@@ -69,15 +71,15 @@ class RefreshUrlRepository implements RefreshUrlRepositoryInterface
 
     public function storeSmscMasterData()
     {
-        // $operatorMapping = OperatorMapping::all()->toArray();
-        // if($operatorMapping){
-        //     foreach($operatorMapping as $value ){
-        //         $value = (object) $value;
-        //         Redis::hmset('SMSCMASTER:'.$value->smsc_id, [
-        //             'OPERATORID' => $value->operator_id,
-        //         ]);
-        //     }
-        // }
+        $operatorMapping = SmscMaster::all()->toArray();
+        if($operatorMapping){
+            foreach($operatorMapping as $value ){
+                $value = (object) $value;
+                Redis::hmset('SMSCMASTER:'.$value->smscid, [
+                    'SHORTCODE' => $value->shortcode,
+                ]);
+            }
+        }
        return 'Refreshed Data';
     }
 
@@ -97,7 +99,19 @@ class RefreshUrlRepository implements RefreshUrlRepositoryInterface
        return 'Refreshed Data';
     }
 
-
+    public function storeCircleMasterData()
+    {
+        $circleMaster = CircleMaster::all()->toArray();
+        if($circleMaster){
+            foreach($circleMaster as $value ){
+                $value = (object) $value;
+                Redis::hmset('CIRCLEMASTER:'.$value->circleid, [
+                    'circlename' => $value->circlename,
+                ]);
+            }
+        }
+       return 'Refreshed Data';
+    }
 
     public function flushallRedisdata(){
         Redis::flushall();
@@ -109,6 +123,9 @@ class RefreshUrlRepository implements RefreshUrlRepositoryInterface
         $this->storeOperatorMappingData();
         $this->storeOperatorMasterData();
         $this->storeCountryMasterData();
+        $this->storeSmscMasterData();
+        $this->storeCircleMasterData();
+
         return 'Refreshed Data'; 
     }
 
