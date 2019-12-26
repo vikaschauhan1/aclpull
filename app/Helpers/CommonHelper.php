@@ -10,7 +10,7 @@ if (!function_exists('getTransactionId')) {
     function getTransactionId() {
         $milliseconds = round(microtime(true) * 1000);
         $incr = Redis::incr("transIncrCounter");
-        if($incr > config('core-properties.maxIncrementVal')){
+        if($incr > config('core-properties.MAXINCREMENTVAL')){
             $incr = Redis::set("transIncrCounter",1);
         }
         return  config('core-properties.transSMOID').'-'.$milliseconds.'-'.$incr;

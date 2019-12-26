@@ -29,8 +29,9 @@ class MoRequestRepository implements MoRequestRepositoryInterface
      */
     public function getAllMoRequest($request)
     {
-        
+
         $from = $request->from;
+        $to = $request->to;
         if(empty($request->TXNID) || !isset($request->TXNID)){
             $transactionId = getTransactionId();
         }else{
@@ -41,7 +42,7 @@ class MoRequestRepository implements MoRequestRepositoryInterface
         if(isset($getMsisdn) && (!empty($getMsisdn)) && is_array($getMsisdn)){
             $this->setRequestInRedis($transactionId,$request);
             $requestRedisKey = 'REQ:'.$transactionId;
-            return $this->saveMoRequest($transactionId, $getMsisdn,$request);
+            return $this->saveMoRequest($request, $transactionId, $getMsisdn);
         }else{
             return 'Invalid Number' ;
         }
@@ -49,7 +50,7 @@ class MoRequestRepository implements MoRequestRepositoryInterface
     }
 
 
-    public function saveMoRequest($transactionId,$getMsisdn,$request){
+    public function saveMoRequest($request,$transactionId,$getMsisdn){
 
             $getSmcIdOperatorDetail = $this->getSmcIdByMsisdn($getMsisdn);
             if(empty($smscId)){
@@ -65,31 +66,42 @@ class MoRequestRepository implements MoRequestRepositoryInterface
             $circleName = $this->getCircleById($circleId);
             $getOperatorData = $this->getOperatorNameById($getOperatorId);
             $operatorName = $getOperatorData->operatorname;
-            $networkType = $getOperatorData->operatortype;
-            $countryCode = $getMsisdn[0];
-            $milliSeconds = round(microtime(true) * 1000);
 
-            $data = array(
-                'REQRECEIVEDTIME' => $milliSeconds,
-                'TRANSACTIONID' => $transactionId,
-                'ORIGNATOR' => '',
-                'NETWORKTYPE' => $networkType,
-                'BEARER' => config('core-properties.bearer'),
-                'CIRCLE' => $circleName,
-                'OPERATOR' => $operatorName,
-                'DESTINATION' => '',
-                'COUNTRYCODE' => $countryCode,
-                'MSISDNSERIES' => '',
-                'SHORTCODE' => $to,
-                'SUFFIX' => substr($to,6),
-                'MESSAGE' => $text,
-                'MESSAGESTATUS' => 'Y',
-                'MESSAGESTATUSDESC' => '',
-                'APPLICATIONID' => '',
-                'DELIVERYTIME' => '',
+            $response = $this->isBlockOperatorShortCode($operatorName,$to);
+            if($response){
+
+                $networkType = $getOperatorData->operatortype;
+                $countryCode = substr(trim($getMsisdn[0]), 0, 2);
+                $getApplicationData =   $this->getApplicationId($smscId, $to, $getMsisdn);
+                $applicationId = $getApplicationData->applicationid ;
+                $suffix = $getApplicationData->suffix ;
+                $shortCode = $getApplicationData->shortcode ;
+                $message = 'SUCCESSFULLY FORWORDED TO APPLICATION';
+                $milliSeconds = round(microtime(true) * config('core-properties.MICROSECOND'));
+                $data = array(
+                    'REQRECEIVEDTIME' => $milliSeconds,
+                    'TRANSACTIONID' => $transactionId,
+                // 'ORIGNATOR' => $getMsisdn,
+                    'NETWORKTYPE' => $networkType,
+                    'BEARER' => config('core-properties.bearer'),
+                    'CIRCLE' => $circleName,
+                    'OPERATOR' => $operatorName,
+                    'DESTINATION' => $to,
+                    'COUNTRYCODE' => $countryCode,
+                    'MSISDNSERIES' => '',
+                    'SHORTCODE' => $shortCode,
+                    'SUFFIX' => $suffix,
+                    'MESSAGE' => $text,
+                    'MESSAGESTATUS' => 'Y',
+                    'MESSAGESTATUSDESC' => $message,
+                    'APPLICATIONID' => $applicationId,
+                    'DELIVERYTIME' => '',
              );
             MoRequest::insert($data);
             return $transactionId;
+        }else{
+            return 'Operator Blocked';
+        }
     }
 
     public function getOperatorIdBySmsc($smscId)
@@ -140,8 +152,8 @@ class MoRequestRepository implements MoRequestRepositoryInterface
 
     public function getSmcIdByMsisdn($msisdn)
     { 
-        $countryCode = $msisdn[0];
-        $msisdnNo = $msisdn[1];
+        $countryCode = substr(trim($msisdn[0]), 0, 2);
+        $msisdnNo =  substr(trim($msisdn[0]), 2, 10); 
         $minItr = config('constant.MINITERATION');
         for($i = $minItr; $i<= strlen($msisdnNo); $i++){
             $seriesList[] = substr($msisdnNo,0,$i);
@@ -192,23 +204,25 @@ class MoRequestRepository implements MoRequestRepositoryInterface
         return true;
     }
 
-    public function getApplicationId($smscId, $to)
+    public function getApplicationId($smscId, $to, $getMsisdn)
     {
-        if($smscId){
-           $shortCode = $this->getShortCodeViaSmsc($smscId);
+        if(!$smscId){
+           $smscId = $this->getSmcIdByMsisdn($getMsisdn);
         }
-        // else{
-        //     $smscId = $this->getSmcIdByMsisdn($abc);
-        //     $shortCode = $this->getShortCodeViaSmsc($smscId);
-        // }
+       
+        $shortCode = $this->getShortCodeViaSmsc($smscId);
+
         if(!empty($shortCode)){
             $suffixShortCode = $to;
             $getSuffix = substr($suffixShortCode, strlen($shortCode) , strlen($suffixShortCode));
         }
 
-        $getApplicationId = SuffixMaster::select('APPLICATIONID')
+        $getApplicationId = SuffixMaster::select('APPLICATIONID','SUFFIX','SHORTCODE')
             ->where('SHORTCODE', $shortCode)->where('SUFFIX', $getSuffix)->first();
-            
+        if($getApplicationId){
+            return $getApplicationId ;
+        }
+        return false;
     }
 
     public function getShortCodeViaSmsc($smscId) 
@@ -225,6 +239,17 @@ class MoRequestRepository implements MoRequestRepositoryInterface
         $circleName = CircleMaster::select('CIRCLENAME')->where('CIRCLEID', $circleId)->first()->toArray();
         return $circleName['circlename'];
                          
+    }
+
+    public function isBlockOperatorShortCode($operatorName,$to){
+        $operatorKey = $operatorName.'-'.$to;
+        $blockedOperatorList = config('operator-block-list');
+        foreach($blockedOperatorList as $key => $val){
+            if($operatorKey == $key && $val == 1){
+               return false;
+            }
+        }
+        return true ;
     }
 
 }
