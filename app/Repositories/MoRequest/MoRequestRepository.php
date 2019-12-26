@@ -30,8 +30,7 @@ class MoRequestRepository implements MoRequestRepositoryInterface
         $from = $request->from;
         $smsc = $request->smsc;
         $text = $request->text;
- $abc = $this->getApplicationId($smscId = '1111', $to);
-
+        $abc = $this->getApplicationId($smscId = '1111', $to);
         if(empty($request->TXNID) || !isset($request->TXNID)){
             $transactionId = getTransactionId();
         }else{
@@ -137,11 +136,13 @@ class MoRequestRepository implements MoRequestRepositoryInterface
 
     public function getApplicationId($smscId, $to)
     {
-        if($smscId){
-           $shortCode = $this->getShortCodeViaSmsc($smscId);
+        if(!$smscId){
+           $smscId = $this->getSmcIdByMsisdn($abc);
         }
+        
+        $shortCode = $this->getShortCodeViaSmsc($smscId);
         // else{
-        //     $smscId = $this->getSmcIdByMsisdn($abc);
+        //    
         //     $shortCode = $this->getShortCodeViaSmsc($smscId);
         // }
         if(!empty($shortCode)){
@@ -151,7 +152,8 @@ class MoRequestRepository implements MoRequestRepositoryInterface
 
         $getApplicationId = SuffixMaster::select('APPLICATIONID')
             ->where('SHORTCODE', $shortCode)->where('SUFFIX', $getSuffix)->first();
-            
+       
+        return $getApplicationId;     
     }
 
     public function getShortCodeViaSmsc($smscId) 
