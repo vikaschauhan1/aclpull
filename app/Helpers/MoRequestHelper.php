@@ -24,21 +24,18 @@ if (!function_exists('getValidNumbers')) {
         $phoneRequirements = config('phoneRegex.phone');
        
         $validNumber = isValid($phoneRequirements[$type], trim($phone));
-            $minLength = config('constant.MINLENGTH');
-            if(!empty($validNumber) && strlen($validNumber[0]) == $minLength){
-                $addSubstring = config('constant.ADDSUBSTRING');
-                $returnNumbers[] = $addSubstring.$validNumber[0];
-            }
-            elseif(!empty($validNumber)){
-                $returnNumbers[] = $validNumber[0];
-            }
-            else{
-                return false;
-            }
-            $validMsisdn[] = substr(trim($returnNumbers[0]), 0, 2);
-            $validMsisdn[] = substr(trim($returnNumbers[0]), 2, 10);   
-            
-        return $validMsisdn;
+        $minLength = config('constant.MINLENGTH');
+        if(!empty($validNumber) && strlen($validNumber[0]) == $minLength){
+            $addSubstring = config('constant.ADDSUBSTRING');
+            $returnNumbers = $addSubstring.$validNumber[0];
+        }
+        elseif(!empty($validNumber)){
+            $returnNumbers = $validNumber[0];
+        }
+        else{
+            return false;
+        }
+        return $returnNumbers;
 
     }
 

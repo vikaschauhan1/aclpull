@@ -39,7 +39,7 @@ class MoRequestRepository implements MoRequestRepositoryInterface
         }
 
         $getMsisdn = getValidNumbers($from, 'domestic');
-        if(isset($getMsisdn) && (!empty($getMsisdn)) && is_array($getMsisdn)){
+        if(isset($getMsisdn) && (!empty($getMsisdn))){
             $this->setRequestInRedis($transactionId,$request);
             $requestRedisKey = 'REQ:'.$transactionId;
             return $this->saveMoRequest($request, $transactionId, $getMsisdn);
@@ -152,8 +152,8 @@ class MoRequestRepository implements MoRequestRepositoryInterface
 
     public function getSmcIdByMsisdn($msisdn)
     { 
-        $countryCode = substr(trim($msisdn[0]), 0, 2);
-        $msisdnNo =  substr(trim($msisdn[0]), 2, 10); 
+        $countryCode = substr(trim($msisdn), 0, 2);
+        $msisdnNo =  substr(trim($msisdn), 2, 10); 
         $minItr = config('constant.MINITERATION');
         for($i = $minItr; $i<= strlen($msisdnNo); $i++){
             $seriesList[] = substr($msisdnNo,0,$i);
